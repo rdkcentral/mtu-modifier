@@ -90,9 +90,9 @@ static ssize_t mtu_mod_write_proc(struct file *fp, const char __user *buffer, si
 		len = sizeof(parameters) - 1;
 	else
 		len = count;
-	parameters[len] = 0;
 	if ( copy_from_user(parameters, buffer, len) )
 		return -EFAULT;
+	parameters[len] = '\0';  // Null-terminate AFTER copying
 	printk(KERN_INFO "input string is %s\n", parameters);
 	if(extract_nvp_value(parameters,"br", brName,sizeof(brName))){
 		printk(KERN_ERR "Please specify the name of the bridge\n");
