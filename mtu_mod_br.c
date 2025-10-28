@@ -298,7 +298,7 @@ static void mtu_mod_send_icmp_too_big_frame(const struct net_device *pInDev, str
     pDst += sizeof(icmpPktTemp); /*pDst points to the data of ICMP packet*/
 
     /* Validate IP header offset before access to avoid overrun */
-    if(pSrc + 16 >= (unsigned char *)pSkb->data + pSkb->len) {
+    if(pSrc + 20 > (unsigned char *)pSkb->data + pSkb->len) {
         kfree_skb(icmpSkb);
         return;
     }
