@@ -283,6 +283,11 @@ static void mtu_mod_send_icmp_too_big_frame(const struct net_device *pInDev, str
     /* set pSrc safely to start of Ethernet header */
     pSrc = (unsigned char *)eth;
 
+    /* Bounds check before accessing pSrc[12] and pSrc[13] */
+    if (pSrc + 14 > (unsigned char *)pSkb->data + pSkb->len) {
+        kfree_skb(icmpSkb);
+        return;
+    }
     if((pSrc[12]==0x81)&&(pSrc[13]==0)){/*vlan tag*/
         memcpy(pDst, &pSrc[14], 2);
         pDst += 2;
