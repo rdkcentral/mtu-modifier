@@ -187,7 +187,8 @@ void mtu_mod_create_node(char *pBrName,char segmentFlag, char icmpFlag, int mtu,
             printk(KERN_ERR "Failed to allocate memory for bridge %s\n", pBrName);
             return;
         }
-        strcpy(pNode->brName, pBrName);
+        strncpy(pNode->brName, pBrName, MTU_MOD_IF_NAME_SIZE - 1);
+        pNode->brName[MTU_MOD_IF_NAME_SIZE - 1] = '\0';
         list_add_tail(&pNode->node, &gMtuModBrList);
     }
     pNode->mtu[0] = (mtu>>8) & 0xFF;
@@ -258,12 +259,13 @@ static unsigned char icmpPktTemp[]={
 
 static void mtu_mod_send_icmp_too_big_frame(const struct net_device *pInDev, struct sk_buff *pSkb, unsigned char mtu[2], unsigned char gw[4])
 {
-    unsigned char *pSrc = eth_hdr(pSkb)->h_dest, *pDst, *pIp, *pIcmp;
+    const struct ethhdr *eth = eth_hdr(pSkb);
+    unsigned char *pSrc = NULL, *pDst, *pIp, *pIcmp;
     struct sk_buff *icmpSkb;
     unsigned short checksum;
     int len, ipLen, icmpLen;
 
-    if(eth_hdr(pSkb)->h_dest[0] & 1)/*don't send icmp too big for multicast or broadcast packets*/
+    if(eth->h_dest[0] & 1)/*don't send icmp too big for multicast or broadcast packets*/
         return;
     icmpSkb = alloc_skb(256, GFP_ATOMIC); /*256 is big enough to construct the icmp too-big frame*/
     if(icmpSkb==NULL)
@@ -273,10 +275,19 @@ static void mtu_mod_send_icmp_too_big_frame(const struct net_device *pInDev, str
     pDst = icmpSkb->data;
     
     /*To construct the Ethernet header first*/
-    memcpy(pDst, eth_hdr(pSkb)->h_source, 6);  /*exchange the source MAC & dest MAC in original packet*/
-    memcpy(&pDst[6], eth_hdr(pSkb)->h_dest, 6);
-    *(unsigned short*)&pDst[12] = eth_hdr(pSkb)->h_proto;
+    memcpy(pDst, eth->h_source, 6);  /*exchange the source MAC & dest MAC in original packet*/
+    memcpy(&pDst[6], eth->h_dest, 6);
+    *(unsigned short*)&pDst[12] = eth->h_proto;
     pDst += 14;
+
+    /* set pSrc safely to start of Ethernet header */
+    pSrc = (unsigned char *)eth;
+
+    /* Bounds check before accessing pSrc[12] and pSrc[13] */
+    if (pSrc + 14 > (unsigned char *)pSkb->data + pSkb->len) {
+        kfree_skb(icmpSkb);
+        return;
+    }
     if((pSrc[12]==0x81)&&(pSrc[13]==0)){/*vlan tag*/
         memcpy(pDst, &pSrc[14], 2);
         pDst += 2;
@@ -290,6 +301,13 @@ static void mtu_mod_send_icmp_too_big_frame(const struct net_device *pInDev, str
     pIcmp = pDst + 20;
     memcpy(pDst, icmpPktTemp,sizeof(icmpPktTemp));
     pDst += sizeof(icmpPktTemp); /*pDst points to the data of ICMP packet*/
+
+    /* Validate IP header offset before access to avoid overrun */
+    if(pSrc + 20 > (unsigned char *)pSkb->data + pSkb->len) {
+        kfree_skb(icmpSkb);
+        return;
+    }
+
     memcpy(&pIp[12], gw, 4); /*Set source IP to wlan Gw's IP address*/
     memcpy(&pIp[16], &pSrc[12], 4); /*Set dest IP*/
 
