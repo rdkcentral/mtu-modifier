@@ -1,0 +1,37 @@
+{
+  "_comment": "Component Build Configuration for Coverity/Native Builds",
+  "_version": "2.0",
+  "_description": "Defines dependencies and build settings for the mtu-modifier kernel module",
+  
+"dependencies": {
+    "_comment": "External repositories needed by this component",
+    "repos": [
+      {
+        "name": "linux-kernel",
+        "repo": "https://git.kernel.org/pub/scm/linux/kernel/git/stable/linux.git",
+        "branch": "v5.15.202",
+        "clone_depth": 1,
+        "build": {
+          "type": "commands",
+          "commands": [
+            "make defconfig",
+            "make modules_prepare"
+          ]
+        }
+      }
+    ]
+  },
+  
+  "native_component": {
+    "_comment": "Configuration for the main component being built",
+    "name": "mtu-modifier",
+    "include_path": "",
+    "lib_output_path": "",
+    "build": {
+        "type": "commands",
+        "commands": [
+          "make KERNEL_SRC=$HOME/build/linux-kernel"
+        ]
+    }
+  }
+}
