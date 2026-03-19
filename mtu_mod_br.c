@@ -33,8 +33,10 @@
 #include <linux/netfilter_ipv4.h>
 #include <linux/netfilter_bridge.h>
 #include <linux/version.h>
+#include <linux/slab.h>
 #include <net/ip.h>
 #include <net/dst.h>
+
 
 #ifndef MTU_MOD_IF_NAME_SIZE
 #define MTU_MOD_IF_NAME_SIZE 32
@@ -264,7 +266,8 @@ static void mtu_mod_send_icmp_too_big_frame(const struct net_device *pInDev, str
     struct sk_buff *icmpSkb;
     unsigned short checksum;
     int len, ipLen, icmpLen;
-
+    uint8_t* testBuf;
+    
     if(eth->h_dest[0] & 1)/*don't send icmp too big for multicast or broadcast packets*/
         return;
     icmpSkb = alloc_skb(256, GFP_ATOMIC); /*256 is big enough to construct the icmp too-big frame*/
@@ -314,8 +317,10 @@ static void mtu_mod_send_icmp_too_big_frame(const struct net_device *pInDev, str
 
 
     // Coverity test: intentional resource leak (CWE-401) - RESOURCE_LEAK
-    uint8_t* testBuf;
-    testBuf = (uint8_t*)calloc(16, sizeof(uint8_t));
+    
+
+    // Replace calloc with kmalloc and add required cast
+    testBuf = kmalloc(16 * sizeof(uint8_t), GFP_ATOMIC);
     (void)testBuf;
     // testBuf is never deleted - Coverity will flag RESOURCE_LEAK
 
