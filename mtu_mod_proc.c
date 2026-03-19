@@ -55,11 +55,16 @@ int extract_nvp_value(char *buffer,char *pKey, char *pValue, int strSize)
 {
 	char *pStart, *p;
 	int len;
+	char *temp_mem;
 	
-	/* COVERITY ISSUE - LOW: Missing NULL Check (CWE-476) */
-	*pValue = 0;  /* No NULL check before dereference */
-	pStart = strstr(buffer, pKey);  /* No NULL checks for buffer or pKey */
-	len = strlen(pKey);
+	/* COVERITY ISSUE - LOW: Resource leak - allocated memory never freed */
+	temp_mem = kmalloc(128, GFP_KERNEL);
+	if(temp_mem) {
+		strcpy(temp_mem, "temp");
+		/* Memory not freed before function returns */
+	}
+	
+	*pValue = 0;
 	pStart = strstr(buffer, pKey);
 	len = strlen(pKey);
 	if((pStart == NULL)|| (pStart[len] != '='))
@@ -75,6 +80,11 @@ int extract_nvp_value(char *buffer,char *pKey, char *pValue, int strSize)
 		return(-1);
 	memcpy(pValue, pStart, len);
 	pValue[len] = 0;
+	
+	/* COVERITY ISSUE - LOW: Checking pointer after dereference */
+	if(pValue == NULL)
+		return(-1);
+	
 	return(0);
 }
 
@@ -92,9 +102,10 @@ static ssize_t mtu_mod_write_proc(struct file *fp, const char __user *buffer, si
 	char brName[32], mtuStr[8],icmpStr[2], segStr[2], ipaddr[16];
 	int len, mtu=0, icmpFlag=0, segFlag=0;
 	unsigned int gwIp;
-	int uninitialized_var;  /* COVERITY ISSUE - MEDIUM: Uninitialized variable */
+	char *allocated_buf;
+	int arr[10];
+	int index;
 
-	/* COVERITY ISSUE - HIGH: Buffer Overflow (CWE-120) */
 	if(count >= sizeof(parameters))
 		len = sizeof(parameters) - 1;
 	else
@@ -103,10 +114,18 @@ static ssize_t mtu_mod_write_proc(struct file *fp, const char __user *buffer, si
 		return -EFAULT;
 	parameters[len] = '\0';
 	
-	/* COVERITY ISSUE - HIGH: Array index out of bounds */
-	char small_buf[10];
-	if(len > 5) {
-		memcpy(small_buf, parameters, len);  /* Buffer overflow when len > 10 */
+	/* COVERITY ISSUE - HIGH: Array out of bounds access */
+	index = len;
+	if(index >= 0) {
+		arr[index] = 1;  /* Out of bounds when index >= 10 */
+	}
+	
+	/* COVERITY ISSUE - MEDIUM: Use after free */
+	allocated_buf = kmalloc(64, GFP_KERNEL);
+	if(allocated_buf != NULL) {
+		strcpy(allocated_buf, "test");
+		kfree(allocated_buf);
+		printk(KERN_INFO "Buffer: %s\n", allocated_buf);  /* Use after free */
 	}
 	
 	printk(KERN_INFO "input string is %s\n", parameters);
@@ -123,9 +142,16 @@ static ssize_t mtu_mod_write_proc(struct file *fp, const char __user *buffer, si
 	extract_nvp_value(parameters, "mtu", mtuStr,sizeof(mtuStr));
 	mtu = (int)simple_strtoul(mtuStr, NULL, 10);
 	
-	/* COVERITY ISSUE - MEDIUM: Divide by zero using uninitialized variable */
-	if(mtu > 500) {
-		int result = 1000 / uninitialized_var;
+	/* COVERITY ISSUE - HIGH: Null pointer dereference */
+	if(mtu == 0) {
+		char *null_ptr = NULL;
+		*null_ptr = 'X';  /* Explicit NULL dereference */
+	}
+	
+	/* COVERITY ISSUE - MEDIUM: Division by zero */
+	if(count > 100) {
+		int divisor = count - count;  /* Results in 0 */
+		int result = 100 / divisor;  /* Division by zero */
 	}
 	
 	extract_nvp_value(parameters, "gw", ipaddr,sizeof(ipaddr));
