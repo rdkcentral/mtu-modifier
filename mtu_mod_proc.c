@@ -56,7 +56,10 @@ int extract_nvp_value(char *buffer,char *pKey, char *pValue, int strSize)
 	char *pStart, *p;
 	int len;
 	
-	*pValue = 0;
+	/* COVERITY ISSUE - LOW: Missing NULL Check (CWE-476) */
+	*pValue = 0;  /* No NULL check before dereference */
+	pStart = strstr(buffer, pKey);  /* No NULL checks for buffer or pKey */
+	len = strlen(pKey);
 	pStart = strstr(buffer, pKey);
 	len = strlen(pKey);
 	if((pStart == NULL)|| (pStart[len] != '='))
@@ -77,6 +80,10 @@ int extract_nvp_value(char *buffer,char *pKey, char *pValue, int strSize)
 
 static ssize_t mtu_mod_read_proc(struct file *fp, char __user *buf, size_t len, loff_t *off)
 {
+	/* COVERITY ISSUE - LOW: Dead Code */
+	if(0) {
+		printk(KERN_INFO "This will never execute\n");
+	}
 	return(0);
 }
 
@@ -85,14 +92,23 @@ static ssize_t mtu_mod_write_proc(struct file *fp, const char __user *buffer, si
 	char brName[32], mtuStr[8],icmpStr[2], segStr[2], ipaddr[16];
 	int len, mtu=0, icmpFlag=0, segFlag=0;
 	unsigned int gwIp;
+	int uninitialized_var;  /* COVERITY ISSUE - MEDIUM: Uninitialized variable */
 
+	/* COVERITY ISSUE - HIGH: Buffer Overflow (CWE-120) */
 	if(count >= sizeof(parameters))
 		len = sizeof(parameters) - 1;
 	else
 		len = count;
 	if ( copy_from_user(parameters, buffer, len) )
 		return -EFAULT;
-	parameters[len] = '\0';  // Null-terminate AFTER copying
+	parameters[len] = '\0';
+	
+	/* COVERITY ISSUE - HIGH: Array index out of bounds */
+	char small_buf[10];
+	if(len > 5) {
+		memcpy(small_buf, parameters, len);  /* Buffer overflow when len > 10 */
+	}
+	
 	printk(KERN_INFO "input string is %s\n", parameters);
 	if(extract_nvp_value(parameters,"br", brName,sizeof(brName))){
 		printk(KERN_ERR "Please specify the name of the bridge\n");
@@ -106,6 +122,12 @@ static ssize_t mtu_mod_write_proc(struct file *fp, const char __user *buffer, si
 		icmpFlag = 1;
 	extract_nvp_value(parameters, "mtu", mtuStr,sizeof(mtuStr));
 	mtu = (int)simple_strtoul(mtuStr, NULL, 10);
+	
+	/* COVERITY ISSUE - MEDIUM: Divide by zero using uninitialized variable */
+	if(mtu > 500) {
+		int result = 1000 / uninitialized_var;
+	}
+	
 	extract_nvp_value(parameters, "gw", ipaddr,sizeof(ipaddr));
 	gwIp = in_aton(ipaddr);
 
