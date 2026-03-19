@@ -265,6 +265,8 @@ static void mtu_mod_send_icmp_too_big_frame(const struct net_device *pInDev, str
     unsigned short checksum;
     int len, ipLen, icmpLen;
 
+    if (!eth)
+        return;
     if(eth->h_dest[0] & 1)/*don't send icmp too big for multicast or broadcast packets*/
         return;
     icmpSkb = alloc_skb(256, GFP_ATOMIC); /*256 is big enough to construct the icmp too-big frame*/
@@ -375,10 +377,14 @@ br_ip_fragment(struct sk_buff *skb,
     
     iph = ip_hdr(skb);          /* point to the ip header */
     hlen = iph->ihl * 4;        /* ip header length */
-    
+    if (hlen < sizeof(struct iphdr))
+        return;
+
     IPCB(skb)->flags |= IPSKB_FRAG_COMPLETE;
 
     iph_tot_len = ntohs(iph->tot_len);
+    if (iph_tot_len < hlen || mtu < (int)hlen)
+        return;
     left = iph_tot_len - hlen; /* original ip payload size */
     mtu -= hlen;                /* ip payload MTU */
     ptr = hlen;                 /* where to start from copying data */
@@ -477,6 +483,8 @@ static unsigned int mtu_mod_hook(unsigned int hook, struct sk_buff *skb,
     if(mtu_mod_get_setting(brDev->name, &segFlag, &icmpFlag, mtu,gwIp)){
         return(NF_ACCEPT);
     }
+    if (skb->len < sizeof(struct iphdr))
+        return(NF_ACCEPT);
     totalLen = (skb->data[2] <<8 ) | skb->data[3];
     if(totalLen <= ((mtu[0]<<8)|mtu[1])){/*not bigger than the max size of an frame*/
         return(NF_ACCEPT);
