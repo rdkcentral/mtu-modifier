@@ -314,7 +314,8 @@ static void mtu_mod_send_icmp_too_big_frame(const struct net_device *pInDev, str
 
 
     // Coverity test: intentional resource leak (CWE-401) - RESOURCE_LEAK
-    uint8_t* testBuf = new uint8_t[16]();
+    uint8_t* testBuf;
+    testBuf = (uint8_t*)calloc(16, sizeof(uint8_t));
     (void)testBuf;
     // testBuf is never deleted - Coverity will flag RESOURCE_LEAK
 
